@@ -43,7 +43,7 @@ void wait_for_user_interaction() {
  */
 int is_file_of_required_format(char *fileByteArray) {
   // Tikriname masyvo ilgį
-  if (sizeof(fileByteArray) != FILE_FORMAT_LENGTH) {
+  if (sizeof(fileByteArray) > FILE_FORMAT_LENGTH) {
 	printf("%s\n", FILE_FORMAT_ERROR_LENGTH);
 	return FALSE;
   }
