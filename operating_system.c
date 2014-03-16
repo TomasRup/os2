@@ -471,6 +471,91 @@ int initialize_given_program_to_memory(const char *fileByteArray) {
 }
 
 /**
+ * Iš atminties spausdina programos pavadinimą.
+ */
+void print_program_name_from_memory() {
+  for (int i=0 ; i<=FILE_FORMAT_PROGRAM_NAME_LENGTH ; i++) {
+    char charToPrint = OS_DESIGN_RESERVED_WORD_SYMBOL;
+	
+	for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
+	  charToPrint = memory[get_real_word_address(OS_DESIGN_DATA_BLOCK_FROM * OS_DESIGN_WORDS_IN_BLOCK + i)][j];
+	  
+	  if (charToPrint != OS_DESIGN_RESERVED_WORD_SYMBOL) {
+	    printf("%c", charToPrint);
+	  } else {
+	    break;
+	  }
+	}
+	
+	if (charToPrint == OS_DESIGN_RESERVED_WORD_SYMBOL) {
+	  break;
+	}
+  }
+}
+
+/**
+ * Iš atminties išgeneruoja žodį
+ */
+char *parse_word_from_memory(int address) {
+  char *word = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    word[i] = memory[address][i];
+  }
+  
+  return word;
+}
+
+/**
+ * Nuskaito komandą, kokia buvo nurodyta atmintyje ir ją vykdo
+ */
+void parse_command_and_launch_it(char *command) {
+  if (command == "ADDN") {
+    // TODO
+  } else {
+  
+  }
+}
+
+/**
+ * Iš atminties nuskaito komandas ir jas vykdo.
+ */
+void commit_commands_from_memory() {
+  // Įdiegiame tuščią žodį
+  char *emptyCommand = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    emptyCommand[i] = OS_DESIGN_RESERVED_WORD_SYMBOL;
+  }
+  
+  // Iteruojame per visas atminty esančias komandas
+  char *command = parse_word_from_memory(get_real_word_address(pc));
+  while (strncmp(command, emptyCommand, OS_DESIGN_BYTES_PER_WORD) != 0) {
+	// Vykdome komandą
+	parse_command_and_launch_it(command);
+	
+	// Padidiname komandos skaitliuką
+	pc++;
+	
+	// Įdiegiame naują komandą
+	command = parse_word_from_memory(get_real_word_address(pc));
+  }
+}
+
+/**
+ * Vykdo programą, iš atminties.
+ */
+int run_program_from_memory() {
+  // Atspausdiname programos pavadinimą iš atminties
+  print_program_name_from_memory();
+  
+  // Iš eilės vykdome visas komandas iš atminties
+  commit_commands_from_memory();
+  
+  // Jeigu neįvyko problemų - gražiname sėkmės reikšmę
+  return TRUE;
+}
+
+/**
  * Pradeda darbą. 
  */
 int main(int argc, const char *argv[]) {
@@ -506,10 +591,17 @@ int main(int argc, const char *argv[]) {
   // Įdiegiame pradinę PC reikšmę
   initialize_pc();
   
-  // Inicializuojame programą į atmintį
+  // Įdiegiame programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
   if (flowSuccess == FALSE) {
 	wait_for_user_interaction();
+	return EXIT_FAILURE;
+  }
+  
+  // Vykdome pačią programą
+  int runSuccess = run_program_from_memory();
+  if (runSuccess == FALSE) {
+    wait_for_user_interaction();
 	return EXIT_FAILURE;
   }
   
