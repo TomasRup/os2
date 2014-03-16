@@ -61,15 +61,17 @@
 #define OS_DESIGN_CODE_BLOCK_TO 13
 #define OS_DESIGN_STACK_BLOCK_FROM 14
 #define OS_DESGIN_STACK_BLOCK_TO 15
+#define OS_DESIGN_DEFAULT_SP_VALUE 223
+#define OS_DESIGN_DEFAULT_PC_VALUE 112
 
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
 
 // Registras/adresas, rodantis į steko viršūnės
-char sp[FILE_FORMAT_WORD_LENGTH];
+int sp;
 
 // Registras/adresas, rodantis sekančios instrukcijos reikšmę
-char pc[FILE_FORMAT_WORD_LENGTH];
+int pc;
 
 // Registras, rodantis į puslapių lentelę
 char ptr[5];
@@ -208,6 +210,20 @@ void initialize_page_table() {
 	// Įrašome į puslapiavimo lentelę adresą
 	write_block_adress_to_page_table(i, randomBlockIndex);
   }
+}
+
+/**
+ * Įdiegia pradinį adresą, į kurį rodo SP.
+ */
+void initialize_sp() {
+  sp = OS_DESIGN_DEFAULT_SP_VALUE;
+}
+
+/**
+ * Įdiegia pradinį adresą, į kurį rodo PC.
+ */
+void initialize_pc() {
+  pc = OS_DESIGN_DEFAULT_PC_VALUE;
 }
 
 /***
@@ -457,12 +473,12 @@ int main(int argc, const char *argv[]) {
   // Įdiegiame puslapiavimo lentelę
   initialize_page_table();
   
-  // Spausdiname atminties būklę
-  //print_memory_status();
+  // Įdiegiame pradinę SP reikšmę
+  initialize_sp();
   
-  // Spausdiname puslapiavimo lentelę
-  print_page_table();
-	
+  // Įdiegiame pradinę PC reikšmę
+  initialize_pc();
+  
   // Inicializuojame programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
   if (flowSuccess == FALSE) {
