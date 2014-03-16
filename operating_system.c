@@ -1,11 +1,11 @@
-﻿// ----------------------------------------------------
+﻿// -----------------------------------------------------------------------
 //
 //
 //	Tomas Petras Rupšys ir Dominykas Šiožinis
 //	Operacinių Sistemų II-ojo atsiskaitymo realizacija
 //
 //
-// ----------------------------------------------------
+// -----------------------------------------------------------------------
 #include <cstdio>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +70,7 @@ void initialize_memory() {
 }
 
 /**
- * Išspausdina atminties būklę bei 
+ * Išspausdina atminties būklę
  */
 void print_memory_status() {
   printf("\n%s\n", MEMORY_STATUS_TEXT_FIRST_LINE);
