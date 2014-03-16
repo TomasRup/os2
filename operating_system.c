@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // C boolean apibrėžimas
 #define TRUE 1
@@ -27,6 +28,8 @@
 #define FILE_FORMAT_WORD_LENGTH_INCORRECT "Klaida! Programoje yra netinkamas kiekis simboliu!"
 #define INCORRECT_PARAMETERS "Klaida! Neteisingi parametrai!"
 #define FILE_DOES_NOT_EXIST "Klaida! Failas neegzistuoja!"
+#define MEMORY_ERROR_DATA_FAILURE "Klaida! Nepavyko irasyti i atminti duotuju duomenu"
+#define MEMORY_ERROR_CODE_FAILURE "Klaida! Nepavyko irasyti kodo eiluciu i atminti!"
 
 // Atminties spausdinimo tekstai
 #define MEMORY_STATUS_TEXT_FIRST_LINE "Atminties bukle:"
@@ -45,18 +48,31 @@
 #define FILE_FORMAT_WORD_LENGTH 4
 
 // OS Atminties specifikacija
-#define OS_DESIGN_WORDS_AMOUNT 256
+#define OS_DESIGN_BLOCKS_FOR_VM 16
+#define OS_DESIGN_WORDS_AMOUNT 512
+#define OS_DESIGN_BLOCKS_AMOUNT 32
+#define OS_DESIGN_WORDS_IN_BLOCK 16
 #define OS_DESIGN_BYTES_PER_WORD 4
 #define OS_DESIGN_EMPTY_WORD_BYTE_SYMBOL '*'
+#define OS_DESIGN_RESERVED_WORD_SYMBOL '-'
+#define OS_DESIGN_DATA_BLOCK_FROM 0
+#define OS_DESIGN_DATA_BLOCK_TO 6
+#define OS_DESIGN_CODE_BLOCK_FROM 7
+#define OS_DESIGN_CODE_BLOCK_TO 13
+#define OS_DESIGN_STACK_BLOCK_FROM 14
+#define OS_DESGIN_STACK_BLOCK_TO 15
 
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
 
-// Virtualios mašinos registras, rodantis į steko viršūnę
-char sp;
+// Registras/adresas, rodantis į steko viršūnės
+char sp[FILE_FORMAT_WORD_LENGTH];
 
-// Komandų skaitliukas, rodo į sekančia instrukciją
-char pc;
+// Registras/adresas, rodantis sekančios instrukcijos reikšmę
+char pc[FILE_FORMAT_WORD_LENGTH];
+
+// Registras, rodantis į puslapių lentelę
+char ptr[5];
 
 /**
  * Užpildo atminties masyvą simboliais, reiškiančiais tuščią baitą.
@@ -70,7 +86,7 @@ void initialize_memory() {
 }
 
 /**
- * Išspausdina atminties būklę
+ * Išspausdina atminties būklę.
  */
 void print_memory_status() {
   printf("\n%s\n", MEMORY_STATUS_TEXT_FIRST_LINE);
@@ -79,6 +95,118 @@ void print_memory_status() {
 	  printf("%c", memory[i][j]);
 	}
 	printf(": %d%s\n", (i+1), MEMORY_STATUS_TEXT_WORD_LINE);
+  }
+}
+
+/**
+ * Išspausdina puslapiavimo lentelę
+ */
+void print_page_table() {
+  int pageTableBlockIndex = atoi(ptr);
+  int pageTableFirstWordIndex = pageTableBlockIndex * OS_DESIGN_WORDS_IN_BLOCK;
+
+  printf("VM :: RM\n");
+  for (int i=0 ; i<OS_DESIGN_BLOCKS_FOR_VM ; i++) {
+    printf("%d :: %s\n", i, memory[pageTableFirstWordIndex + i]);
+  }
+}
+
+/**
+ * Paverčia skaičių kaip simbolį. Galioja tik rėžiuose [0 ; 9].
+ */
+char int_to_char_symbol(int number) {
+  return (char)((int)'0' + number);
+}
+
+/**
+ * Rezervuoja bloką. Techniškai, pakeičia kiekvieną žodžio baitą iš
+ * OS_DESIGN_EMPTY_WORD_BYTE_SYMBOL į OS_DESIGN_RESERVED_WORD_SYMBOL.
+ */
+void reserve_block(int blockIndex) {
+  int wordsFrom = blockIndex * OS_DESIGN_WORDS_IN_BLOCK;
+  int wordsTo = blockIndex * OS_DESIGN_WORDS_IN_BLOCK + OS_DESIGN_WORDS_IN_BLOCK;
+  
+  for (int i=wordsFrom ; i<wordsTo ; i++) {
+    for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
+	  memory[i][j] = OS_DESIGN_RESERVED_WORD_SYMBOL;
+	}
+  }
+}
+
+/**
+ * Įdiegia PTR registrą su reikšme, kur saugoma puslapiavimo lentelė.
+ */
+void initialize_ptr() {
+  // Įdiegiame atsitikinių skaičių generatorių pagal laiką nuo 1970.01.01
+  srand(time(NULL));
+  
+  // Parenkame atsitiktinį bloką puslapiavimo lentelei
+  int pageTableBlockIndex = rand() % OS_DESIGN_BLOCKS_AMOUNT;
+  int a1 = 0;
+  int a2 = 0;
+  int a3 = pageTableBlockIndex / 10;
+  int a4 = pageTableBlockIndex % 10;
+
+  // Įrašome reikšmę į PTR
+  ptr[0] = int_to_char_symbol(a1);
+  ptr[1] = int_to_char_symbol(a2);
+  ptr[2] = int_to_char_symbol(a3);
+  ptr[3] = int_to_char_symbol(a4);
+  
+  // Rezervuojame bloką puslapiavimo lentelei
+  reserve_block(pageTableBlockIndex);
+}
+
+/**
+ * Tikrina, ar realios atminties blokas yra tuščias.
+ */
+int is_block_empty(int blockIndex) {
+  int wordsFrom = blockIndex * OS_DESIGN_WORDS_IN_BLOCK;
+  int wordsTo = blockIndex * OS_DESIGN_WORDS_IN_BLOCK + OS_DESIGN_WORDS_IN_BLOCK;
+  
+  for (int i=wordsFrom ; i<wordsTo ; i++) {
+    for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
+	  if (memory[i][j] != OS_DESIGN_EMPTY_WORD_BYTE_SYMBOL) {
+	    return FALSE;
+	  }
+	}
+  }
+  
+  return TRUE;
+}
+
+/**
+ * Įrašo bloko atitikmenį į puslapiavimo lentelę.
+ */
+void write_block_adress_to_page_table(int virtualIndex, int realIndex) {
+  int pageTableBlockIndex = atoi(ptr);
+  int pageTableFirstWordIndex = pageTableBlockIndex * OS_DESIGN_WORDS_IN_BLOCK;
+  sprintf(memory[pageTableFirstWordIndex + virtualIndex], "%d", realIndex);
+}
+
+/**
+ * Įdiegia puslapiavimo lentelę.
+ */
+void initialize_page_table() {
+  // Įdiegiame atsitikinių skaičių generatorių pagal laiką nuo 1970.01.01
+  srand(time(NULL));
+
+  // Iteruojame per nuo 0 iki tiek blokų kiek reikia VM
+  for (int i=0 ; i<OS_DESIGN_BLOCKS_FOR_VM ; i++) {
+    int randomBlockIndex = -1;
+	int isBlockEmpty = FALSE;
+	
+	// Generuojame atsitiktinį bloko numerį kol randame tuščią
+	do {
+	  randomBlockIndex = rand() % OS_DESIGN_BLOCKS_AMOUNT;
+	  isBlockEmpty = is_block_empty(randomBlockIndex);
+	} while (isBlockEmpty == FALSE);
+	
+	// Rezervuojame bloką
+	reserve_block(randomBlockIndex);
+	
+	// Įrašome į puslapiavimo lentelę adresą
+	write_block_adress_to_page_table(i, randomBlockIndex);
   }
 }
 
@@ -215,9 +343,28 @@ char *substring_from_until_symbol(const char *dataLine, const int from, const ch
 }
 
 /**
- * Pagal įvesties duomenis, vykdo programą operacinėjė sistemoje.
+ *
  */
-int initialize_given_program(const char *fileByteArray) {
+int initialize_program_data_to_memory(const int maximumLinesToPrint, const char *programName) {
+  // TODO
+  return TRUE;
+}
+
+/**
+ *
+ */
+int initialize_program_code_to_memory(char programCodeLines[][FILE_FORMAT_WORD_LENGTH + 1], int linesLength) {
+  for (int i=0 ; i<linesLength ; i++) {
+    // TODO
+	printf("%s\n", programCodeLines[i]);
+  }
+  return TRUE;
+}
+
+/**
+ * Pagal įvesties duomenis, suvedame visus duomenis į atmintį
+ */
+int initialize_given_program_to_memory(const char *fileByteArray) {
   // Išgauname maksimalų spausdinamų eilučių kiekį
   const int maximumLinesToPrint = atoi(substring_from_to(fileByteArray, FILE_FORMAT_PROGRAM_MAX_LINES_FROM, 
     FILE_FORMAT_PROGRAM_MAX_LINES_TO));
@@ -232,6 +379,13 @@ int initialize_given_program(const char *fileByteArray) {
 
   if (programName == NULL) {
     printf("%s\n", FILE_FORMAT_ERROR_INCORRECT_NAME);
+    return FALSE;
+  }
+  
+  // Įrašome į atmintį
+  int initializedData = initialize_program_data_to_memory(maximumLinesToPrint, programName);
+  if (initializedData == FALSE) {
+	printf("%s\n", MEMORY_ERROR_DATA_FAILURE);
     return FALSE;
   }
   
@@ -265,14 +419,11 @@ int initialize_given_program(const char *fileByteArray) {
 	lineNo++;
   }
   
-  // Iteruojame per kiekvieną programos eilutę
-  for (int i=0 ; i<lineNo ; i++) {
-    printf("%s\n", programCodeLines[i]);
-    //   komandos dekodavimas (atmintis per puslapiavima)
-    //   komandos vykdymas (tik CPU, atmintis)
-    //   kanalu irenginys
-    //   timer
-    //   pertraukimu tikrinimas (supervizoriaus rezimas)
+  // Į atmintį įrašome visas kodų komandas 
+  int initializedCode = initialize_program_code_to_memory(programCodeLines, lineNo);
+  if (initializedCode == FALSE) {
+    printf("%s\n", MEMORY_ERROR_CODE_FAILURE);
+	return FALSE;
   }
 
   // Jeigu neįvyko problemų - gražiname sėkmės reikšmę
@@ -300,13 +451,26 @@ int main(int argc, const char *argv[]) {
   // Įdiegiame operacinės sistemos atmintį
   initialize_memory();
   
+  // Įdiegiame PTR registrą su nuorodą į puslapiavimo lentelę
+  initialize_ptr();
+
+  // Įdiegiame puslapiavimo lentelę
+  initialize_page_table();
+  
   // Spausdiname atminties būklę
-  print_memory_status();
+  //print_memory_status();
+  
+  // Spausdiname puslapiavimo lentelę
+  print_page_table();
 	
-  // Vykdome programą
-  int flowSuccess = initialize_given_program(fileByteArray);
+  // Inicializuojame programą į atmintį
+  int flowSuccess = initialize_given_program_to_memory(fileByteArray);
+  if (flowSuccess == FALSE) {
+	wait_for_user_interaction();
+	return EXIT_FAILURE;
+  }
   
   // Užbaigiame darbą
   wait_for_user_interaction();
-  return flowSuccess == TRUE ? EXIT_SUCCESS : EXIT_FAILURE;
+  return EXIT_SUCCESS;
 }
