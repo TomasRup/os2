@@ -74,7 +74,7 @@ int sp;
 int pc;
 
 // Registras, rodantis į puslapių lentelę
-char ptr[5];
+char ptr[4];
 
 /**
  * Užpildo atminties masyvą simboliais, reiškiančiais tuščią baitą.
@@ -210,6 +210,14 @@ void initialize_page_table() {
 	// Įrašome į puslapiavimo lentelę adresą
 	write_block_adress_to_page_table(i, randomBlockIndex);
   }
+}
+
+/**
+ * Gražina žodžio virtualų adresą.
+ */
+int get_real_word_address(int virtualWordAddress) {
+  return (OS_DESIGN_BLOCKS_FOR_VM * atoi(memory[OS_DESIGN_BLOCKS_FOR_VM * atoi(ptr) + virtualWordAddress / OS_DESIGN_BLOCKS_FOR_VM])) + 
+    (virtualWordAddress % OS_DESIGN_BLOCKS_FOR_VM);
 }
 
 /**
@@ -478,6 +486,12 @@ int main(int argc, const char *argv[]) {
   
   // Įdiegiame pradinę PC reikšmę
   initialize_pc();
+  
+// TODO
+  print_page_table();
+  int realAddress = get_real_word_address(185);
+  printf("\n\nVirtualus zodzio adresas - 185. O realus - %d\n", realAddress);
+// TODO
   
   // Inicializuojame programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
