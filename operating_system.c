@@ -237,7 +237,7 @@ int initialize_given_program(const char *fileByteArray) {
   
   // Išgauname pačią programą į simbolių masyvą
   int programCodeLength = strlen(fileByteArray) - strlen(FILE_FORMAT_BEGINNING) - 
-    strlen(FILE_FORMAT_ENDING) - FILE_FORMAT_PROGRAM_MAX_LINES_FROM - strlen(programName);
+    strlen(FILE_FORMAT_ENDING) - FILE_FORMAT_PROGRAM_MAX_LINES_FROM - strlen(programName) - 1;
   
   if (programCodeLength % FILE_FORMAT_WORD_LENGTH != 0) {
 	printf("%s\n", FILE_FORMAT_WORD_LENGTH_INCORRECT);
@@ -246,7 +246,7 @@ int initialize_given_program(const char *fileByteArray) {
   
   int programCodeStartIndex = strlen(FILE_FORMAT_BEGINNING) + 
     (FILE_FORMAT_PROGRAM_MAX_LINES_TO - FILE_FORMAT_PROGRAM_MAX_LINES_FROM + 1) +
-	strlen(programName);
+	strlen(programName) + 1;
 
   const char* programCode = substring_from_to(fileByteArray, programCodeStartIndex, 
     programCodeStartIndex + programCodeLength - 1);
