@@ -32,19 +32,17 @@
 #define MEMORY_ERROR_CODE_FAILURE "Klaida! Nepavyko irasyti kodo eiluciu i atminti!"
 
 // Atminties spausdinimo tekstai
-#define MEMORY_STATUS_TEXT_FIRST_LINE "Atminties bukle:"
+#define MEMORY_STATUS_TEXT_FIRST_LINE "\n\nAtminties bukle:\n"
 #define MEMORY_STATUS_TEXT_WORD_LINE "-as zodis"
+#define PAGE_TABLE_TEXT_FIRST_LINE "\n\nPuslapiavimo lentele\nVM :: RM\n"
 
 // Programos failų formato reikalavimai
 #define FILE_FORMAT_BEGINNING "$BEG"
 #define FILE_FORMAT_ENDING "$END"
 #define FILE_FORMAT_MAX_LENGTH 444
-#define FILE_FORMAT_PRINT_LINES_LENGTH 4
-#define FILE_FORMAT_PROGRAM_MAX_LINES_FROM 4
-#define FILE_FORMAT_PROGRAM_MAX_LINES_TO 7
-#define FILE_FORMAT_PROGRAM_NAME_LENGTH 32
+#define FILE_FORMAT_PROGRAM_NAME_LENGTH 36
 #define FILE_FORMAT_PROGRAM_NAME_END_SYMBOL '$'
-#define FILE_FORMAT_PROGRAM_NAME_FROM 8
+#define FILE_FORMAT_PROGRAM_NAME_FROM 4
 #define FILE_FORMAT_WORD_LENGTH 4
 
 // OS Atminties specifikacija
@@ -63,6 +61,9 @@
 #define OS_DESGIN_STACK_BLOCK_TO 15
 #define OS_DESIGN_DEFAULT_SP_VALUE 223
 #define OS_DESIGN_DEFAULT_PC_VALUE 112
+
+// Atminties išvesties failo duomenys
+#define MEMORY_STATUS_FILE_NAME "memory_status.txt"
 
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
@@ -91,25 +92,33 @@ void initialize_memory() {
  * Išspausdina atminties būklę.
  */
 void print_memory_status() {
-  printf("\n%s\n", MEMORY_STATUS_TEXT_FIRST_LINE);
+  FILE *file;
+  file = fopen(MEMORY_STATUS_FILE_NAME, "a");
+
+  fprintf(file, "%s", MEMORY_STATUS_TEXT_FIRST_LINE);
   for (int i=0 ; i<OS_DESIGN_WORDS_AMOUNT ; i++) {
 	for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
-	  printf("%c", memory[i][j]);
+	  fprintf(file, "%c", memory[i][j]);
 	}
-	printf(": %d%s\n", (i+1), MEMORY_STATUS_TEXT_WORD_LINE);
+	fprintf(file, ": %d%s\n", (i+1), MEMORY_STATUS_TEXT_WORD_LINE);
   }
+  
+  fclose(file);
 }
 
 /**
  * Išspausdina puslapiavimo lentelę
  */
 void print_page_table() {
+  FILE *file;
+  file = fopen(MEMORY_STATUS_FILE_NAME, "a");
+
   int pageTableBlockIndex = atoi(ptr);
   int pageTableFirstWordIndex = pageTableBlockIndex * OS_DESIGN_WORDS_IN_BLOCK;
 
-  printf("VM :: RM\n");
+  fprintf(file, "%s", PAGE_TABLE_TEXT_FIRST_LINE);
   for (int i=0 ; i<OS_DESIGN_BLOCKS_FOR_VM ; i++) {
-    printf("%d :: %s\n", i, memory[pageTableFirstWordIndex + i]);
+    fprintf(file, "%d :: %s\n", i, memory[pageTableFirstWordIndex + i]);
   }
 }
 
@@ -266,13 +275,13 @@ int is_file_of_required_format(char *fileByteArray) {
 	return FALSE;
   }
   
-  // Tikriname pabaigos žymę
+  // Tikriname pabaigos žymę  
   int actualFormatEndingLength = strlen(FILE_FORMAT_ENDING);
   char *lastSymbols = (char *)calloc(actualFormatEndingLength, sizeof(char));
   for (int i=0,j=(strlen(fileByteArray) - actualFormatEndingLength) ; i<actualFormatEndingLength ; i++,j++) {
 	lastSymbols[i] = fileByteArray[j];
   }
-  
+
   if (strcmp(lastSymbols, FILE_FORMAT_ENDING) != 0) {
 	printf("%s\n", FILE_FORMAT_ERROR_ENDING);
 	free(lastSymbols);
@@ -301,7 +310,7 @@ char *init_char_array_from_file(const char *fileName) {
   int elements = ftell(osFile);
   
   // Sukuriame char masyvą tolygų failo dydžiui
-  char *dataToReturn = (char *)calloc(elements, sizeof(char));
+  char *dataToReturn = (char *)calloc(elements + 1, sizeof(char));
   
   // Grįžtame į failo pradžią
   fseek(osFile, 0L, SEEK_SET);
@@ -315,6 +324,9 @@ char *init_char_array_from_file(const char *fileName) {
   
   // Uždarome failą
   fclose(osFile);
+  
+  // Pridedame pabaigos simbolį prie programos duomenų eilutės
+  dataToReturn[elements + 1] = '\0'; 
   
   // Tikriname, ar failas atitinka formatą
   if (is_file_of_required_format(dataToReturn) == FALSE) {
@@ -367,36 +379,42 @@ char *substring_from_until_symbol(const char *dataLine, const int from, const ch
 }
 
 /**
- *
+ * Įrašo programos vardą į bloką, kuris virtualiam lygmenį yra skirtas
+ * duomenims. Nuo kur prasideda blokas nurodo: OS_DESIGN_DATA_BLOCK_FROM.
  */
-int initialize_program_data_to_memory(const int maximumLinesToPrint, const char *programName) {
-  // TODO
+int initialize_program_data_to_memory(const char *programName) {
+  int programNameLength = strlen(programName);
+  
+  for (int i=0,j=0 ; i<strlen(programName) ; i=i+OS_DESIGN_BYTES_PER_WORD,j++) {
+	int virtualWordIndex = OS_DESIGN_DATA_BLOCK_FROM * 16 + j;
+  
+    for (int k=0 ; k<OS_DESIGN_BYTES_PER_WORD ; k++) {
+	  memory[get_real_word_address(virtualWordIndex)][k] = programName[i+k];
+	}
+  }
+
   return TRUE;
 }
 
 /**
- *
+ * Į bloką skirta programos kodui surašo visas komandas iš failo.
  */
 int initialize_program_code_to_memory(char programCodeLines[][FILE_FORMAT_WORD_LENGTH + 1], int linesLength) {
   for (int i=0 ; i<linesLength ; i++) {
-    // TODO
-	printf("%s\n", programCodeLines[i]);
+    int virtualWordIndex = OS_DESIGN_CODE_BLOCK_FROM * 16 + i;
+	
+	for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
+	  memory[get_real_word_address(virtualWordIndex)][j] = programCodeLines[i][j];
+	}
   }
+  
   return TRUE;
 }
 
 /**
  * Pagal įvesties duomenis, suvedame visus duomenis į atmintį
  */
-int initialize_given_program_to_memory(const char *fileByteArray) {
-  // Išgauname maksimalų spausdinamų eilučių kiekį
-  const int maximumLinesToPrint = atoi(substring_from_to(fileByteArray, FILE_FORMAT_PROGRAM_MAX_LINES_FROM, 
-    FILE_FORMAT_PROGRAM_MAX_LINES_TO));
-  if (maximumLinesToPrint == 0) {
-    printf("%s\n", FILE_FORMAT_ERROR_INCORRECT_LINES_LENGTH);
-    return FALSE;
-  }
-	
+int initialize_given_program_to_memory(const char *fileByteArray) {	
   // Išgauname programos pavadinimą
   const char *programName = substring_from_until_symbol(fileByteArray, FILE_FORMAT_PROGRAM_NAME_FROM, 
     FILE_FORMAT_PROGRAM_NAME_END_SYMBOL, FILE_FORMAT_PROGRAM_NAME_LENGTH);
@@ -407,7 +425,7 @@ int initialize_given_program_to_memory(const char *fileByteArray) {
   }
   
   // Įrašome į atmintį
-  int initializedData = initialize_program_data_to_memory(maximumLinesToPrint, programName);
+  int initializedData = initialize_program_data_to_memory(programName);
   if (initializedData == FALSE) {
 	printf("%s\n", MEMORY_ERROR_DATA_FAILURE);
     return FALSE;
@@ -415,16 +433,14 @@ int initialize_given_program_to_memory(const char *fileByteArray) {
   
   // Išgauname pačią programą į simbolių masyvą
   int programCodeLength = strlen(fileByteArray) - strlen(FILE_FORMAT_BEGINNING) - 
-    strlen(FILE_FORMAT_ENDING) - FILE_FORMAT_PROGRAM_MAX_LINES_FROM - strlen(programName) - 1;
+    strlen(FILE_FORMAT_ENDING) - strlen(programName) - 1;
   
   if (programCodeLength % FILE_FORMAT_WORD_LENGTH != 0) {
 	printf("%s\n", FILE_FORMAT_WORD_LENGTH_INCORRECT);
 	return FALSE;
   }
   
-  int programCodeStartIndex = strlen(FILE_FORMAT_BEGINNING) + 
-    (FILE_FORMAT_PROGRAM_MAX_LINES_TO - FILE_FORMAT_PROGRAM_MAX_LINES_FROM + 1) +
-	strlen(programName) + 1;
+  int programCodeStartIndex = strlen(FILE_FORMAT_BEGINNING) + strlen(programName) + 1;
 
   const char* programCode = substring_from_to(fileByteArray, programCodeStartIndex, 
     programCodeStartIndex + programCodeLength - 1);
@@ -472,6 +488,9 @@ int main(int argc, const char *argv[]) {
 	return EXIT_FAILURE;
   }
 	
+  // Išvalome failą, skirtą atminties būklei stebėti
+  remove(MEMORY_STATUS_FILE_NAME);
+	
   // Įdiegiame operacinės sistemos atmintį
   initialize_memory();
   
@@ -487,18 +506,18 @@ int main(int argc, const char *argv[]) {
   // Įdiegiame pradinę PC reikšmę
   initialize_pc();
   
-// TODO
-  print_page_table();
-  int realAddress = get_real_word_address(185);
-  printf("\n\nVirtualus zodzio adresas - 185. O realus - %d\n", realAddress);
-// TODO
-  
   // Inicializuojame programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
   if (flowSuccess == FALSE) {
 	wait_for_user_interaction();
 	return EXIT_FAILURE;
   }
+  
+  // Spausdiname atminties būklę
+  print_memory_status();
+  
+  // Spausdiname puslapiavimo lentelę
+  print_page_table();
   
   // Užbaigiame darbą
   wait_for_user_interaction();
