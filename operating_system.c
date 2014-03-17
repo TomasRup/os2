@@ -76,6 +76,16 @@
 #define PRTN "PRTN" // PRTN
 #define STOP "STOP" // STOP
 
+// OS funkcijų tekstai
+#define OS_COMMAND_TEXT_LDxy "\nVykdoma komanda LDxy...\n"
+#define OS_COMMAND_TEXT_PTxy "\nVykdoma komanda PTxy...\n"
+#define OS_COMMAND_TEXT_ADDN "\nVykdoma komanda ADDN...\n"
+#define OS_COMMAND_TEXT_SUBN "\nVykdoma komanda SUBN...\n"
+#define OS_COMMAND_TEXT_READ "\nIveskite skaiciu (0-999): "
+#define OS_COMMAND_TEXT_PRTS "\nVykdoma komanda PRTS...\n"
+#define OS_COMMAND_TEXT_PRTN "\nVykdoma komanda PRTN...\n"
+#define OS_COMMAND_TEXT_STOP "\nVykdoma komanda STOP...\n"
+
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
 
@@ -505,7 +515,7 @@ void print_program_name_from_memory() {
 }
 
 /**
- * Iš atminties išgeneruoja žodį
+ * Iš atminties išgeneruoja žodį.
  */
 char *parse_word_from_memory(int address) {
   char *word = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
@@ -522,7 +532,7 @@ char *parse_word_from_memory(int address) {
  * adresu 16 * x + y. (x < 7), SP--.
  */
 void os_command_ld(char x, char y) {
-  printf("ld%c%c!", x, y);
+  printf("%s", OS_COMMAND_TEXT_LDxy);
 }
 
 /**
@@ -530,7 +540,7 @@ void os_command_ld(char x, char y) {
  * adresu SP++; 16 * x + y. (x < 7).
  */
 void os_command_pt(char x, char y) {
-  printf("pt%c%c!", x, y);
+  printf("%s", OS_COMMAND_TEXT_PTxy);
 }
 
 /**
@@ -539,7 +549,7 @@ void os_command_pt(char x, char y) {
  * + [SP]; SP--.
  */
 void os_command_addn() {
-  printf("addn!");
+  printf("%s", OS_COMMAND_TEXT_ADDN);
 }
 
 /**
@@ -548,14 +558,21 @@ void os_command_addn() {
  * vienetu. [SP – 1] = [ SP – 1] - [SP]; SP--.
  */
 void os_command_subn() {
-  printf("subn!");
+  printf("%s", OS_COMMAND_TEXT_SUBN);
 }
 
 /**
  * READ – nuskaito vartotojo įvedimą kaip skaičių ir įrašo į steko viršūnę.
  */
 void os_command_read() {
-  printf("read!");
+  int ivestasSkaicius = 0;
+  do {
+	printf("%s", OS_COMMAND_TEXT_READ);
+	scanf("%d", &ivestasSkaicius);
+  } while (ivestasSkaicius < 0 || ivestasSkaicius > 999);
+  printf("\n");
+  
+  
 }
 
 /**
@@ -563,7 +580,7 @@ void os_command_read() {
  * išvedimo įrenginį.
  */
 void os_command_prts() {
-  printf("prts!");
+  printf("%s", OS_COMMAND_TEXT_PRTS);
 }
 
 /**
@@ -571,14 +588,14 @@ void os_command_prts() {
  *  į išvedimo įrenginį.
  */
 void os_command_prtn() {
-  printf("prtn!");
+  printf("%s", OS_COMMAND_TEXT_PRTN);
 }
 
 /**
  * STOP – programos sustojimo komanda.
  */
 void os_command_stop() {
-  printf("stop!");
+  printf("%s", OS_COMMAND_TEXT_STOP);
 }
 
 /**
@@ -621,7 +638,7 @@ int parse_command_and_launch_it(char *command) {
   // Neatpažinta komanda
   } else {
 	printf("%s\n", INCORRECT_COMMAND_READ_FROM_MEMORY);
-    return FALSE;
+	return FALSE;
   }
   
   return TRUE;
