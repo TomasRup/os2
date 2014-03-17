@@ -548,19 +548,31 @@ void write_word_to_memory_at(int realAddress, char *word) {
 }
 
 /**
+ * Konvertuoja du simbolius, is eiles sudarancius sesioliktaini
+ * skaiciu i desimatini ir grazina jo reiksme.
+ */
+int two_hex_symbols_to_decimal(char x, char y) {
+  
+}
+
+/**
  * LDxy – į steko viršūnę perkelia reikšmę iš duomenų srities 
- * adresu 16 * x + y. (x < 7), SP--.
+ * adresu SP++; 16 * x + y. (x < 7). xy - sesioliktainis skaicius.
  */
 void os_command_ld(char x, char y) {
   printf("%s", OS_COMMAND_TEXT_LDxy);
+  int wordNumber = two_hex_symbols_to_decimal(x, y);
+  printf("\n\n%d\n\n", wordNumber);
 }
 
 /**
  * PTxy – steko viršūnėje esantį žodį deda į duomenų sritį nurodytu
- * adresu SP++; 16 * x + y. (x < 7).
+ * adresu 16 * x + y. (x < 7); SP--. xy - sesioliktainis skaicius.
  */
 void os_command_pt(char x, char y) {
   printf("%s", OS_COMMAND_TEXT_PTxy);
+  int wordNumber = two_hex_symbols_to_decimal(x, y);
+  printf("\n\n%d\n\n", wordNumber);
 }
 
 /**
