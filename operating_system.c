@@ -30,6 +30,7 @@
 #define FILE_DOES_NOT_EXIST "Klaida! Failas neegzistuoja!"
 #define MEMORY_ERROR_DATA_FAILURE "Klaida! Nepavyko irasyti i atminti duotuju duomenu"
 #define MEMORY_ERROR_CODE_FAILURE "Klaida! Nepavyko irasyti kodo eiluciu i atminti!"
+#define INCORRECT_COMMAND_READ_FROM_MEMORY "Klaida! I atminti isivele neatpazistama komanda!"
 
 // Atminties spausdinimo tekstai
 #define MEMORY_STATUS_TEXT_FIRST_LINE "\n\nAtminties bukle:\n"
@@ -64,6 +65,16 @@
 
 // Atminties išvesties failo duomenys
 #define MEMORY_STATUS_FILE_NAME "memory_status.txt"
+
+// OS funkcijų string pavadinimai
+#define LD "LD"     // LDxy
+#define PT "PT"		// PTxy
+#define ADDN "ADDN" // ADDN
+#define SUBN "SUBN" // SUBN
+#define READ "READ" // READ
+#define PRTS "PRTS" // PRTS
+#define PRTN "PRTN" // PRTN
+#define STOP "STOP" // STOP
 
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
@@ -507,20 +518,120 @@ char *parse_word_from_memory(int address) {
 }
 
 /**
- * Nuskaito komandą, kokia buvo nurodyta atmintyje ir ją vykdo
+ * LDxy – į steko viršūnę perkelia reikšmę iš duomenų srities 
+ * adresu 16 * x + y. (x < 7), SP--.
  */
-void parse_command_and_launch_it(char *command) {
-  if (command == "ADDN") {
-    // TODO
-  } else {
-  
-  }
+void os_command_ld(char x, char y) {
+  printf("ld%c%c!", x, y);
 }
 
 /**
- * Iš atminties nuskaito komandas ir jas vykdo.
+ * PTxy – steko viršūnėje esantį žodį deda į duomenų sritį nurodytu
+ * adresu SP++; 16 * x + y. (x < 7).
  */
-void commit_commands_from_memory() {
+void os_command_pt(char x, char y) {
+  printf("pt%c%c!", x, y);
+}
+
+/**
+ * ADDN – sudeda du viršutinius steko elementus. Rezultatą padeda į 
+ * steko viršūnę ir steko rodyklę sumažina vienetu. [SP – 1] = [SP – 1] 
+ * + [SP]; SP--.
+ */
+void os_command_addn() {
+  printf("addn!");
+}
+
+/**
+ * SUBN – atima steko viršūnėje esantį elementą iš antro nuo viršaus 
+ * elemento. Rezultatą padeda į steko viršūnę  ir steko rodyklę sumažina 
+ * vienetu. [SP – 1] = [ SP – 1] - [SP]; SP--.
+ */
+void os_command_subn() {
+  printf("subn!");
+}
+
+/**
+ * READ – nuskaito vartotojo įvedimą kaip skaičių ir įrašo į steko viršūnę.
+ */
+void os_command_read() {
+  printf("read!");
+}
+
+/**
+ * PRTS – steko viršūnėje esantį žodį traktuoja kaip simbolius ir išveda į 
+ * išvedimo įrenginį.
+ */
+void os_command_prts() {
+  printf("prts!");
+}
+
+/**
+ * PRTN – steko viršūnėje esantį žodį traktuoja kaip skaitinę reikšmę ir išveda
+ *  į išvedimo įrenginį.
+ */
+void os_command_prtn() {
+  printf("prtn!");
+}
+
+/**
+ * STOP – programos sustojimo komanda.
+ */
+void os_command_stop() {
+  printf("stop!");
+}
+
+/**
+ * Nuskaito komandą, kokia buvo nurodyta atmintyje ir ją vykdo. Gražina
+ * TRUE arba FALSE priklausomai nuo to, ar komanda įvykdyta sėkmingai.
+ */
+int parse_command_and_launch_it(char *command) {
+  // Komanda PTxy
+  if (strncmp(LD, command, 2) == 0) {
+	os_command_ld(command[2], command[3]);
+  
+  // Komanda PTxy
+  } else if (strncmp(PT, command, 2) == 0) {
+    os_command_pt(command[2], command[3]);
+  
+  // Komanda ADDN
+  } else if (strncmp(ADDN, command, 4) == 0) {
+    os_command_addn();
+  
+  // Komanda SUBN
+  } else if (strncmp(SUBN, command, 4) == 0) {
+    os_command_subn();
+  
+  // Komanda READ
+  } else if (strncmp(READ, command, 4) == 0) {
+	os_command_read();
+  
+  // Komanda PRTS
+  } else if (strncmp(PRTS, command, 4) == 0) {
+	os_command_prts();
+  
+  // Komanda PRTN
+  } else if (strncmp(PRTN, command, 4) == 0) {
+	os_command_prtn();
+  
+  // Komanda STOP
+  } else if (strncmp(STOP, command, 4) == 0) {
+	os_command_stop();
+  
+  // Neatpažinta komanda
+  } else {
+	printf("%s\n", INCORRECT_COMMAND_READ_FROM_MEMORY);
+    return FALSE;
+  }
+  
+  return TRUE;
+}
+
+/**
+ * Iš atminties nuskaito komandas ir jas vykdo. Gražina TRUE arba FALSE
+ * priklausomai nuo to, ar sėkmingai įgyvendinta komanda.
+ */
+int commit_commands_from_memory() {
   // Įdiegiame tuščią žodį
   char *emptyCommand = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
@@ -531,7 +642,10 @@ void commit_commands_from_memory() {
   char *command = parse_word_from_memory(get_real_word_address(pc));
   while (strncmp(command, emptyCommand, OS_DESIGN_BYTES_PER_WORD) != 0) {
 	// Vykdome komandą
-	parse_command_and_launch_it(command);
+	int parsedAndLaunched = parse_command_and_launch_it(command);
+	if (parsedAndLaunched == FALSE) {
+	  return FALSE;
+	}
 	
 	// Padidiname komandos skaitliuką
 	pc++;
@@ -539,6 +653,8 @@ void commit_commands_from_memory() {
 	// Įdiegiame naują komandą
 	command = parse_word_from_memory(get_real_word_address(pc));
   }
+  
+  return TRUE;
 }
 
 /**
@@ -549,7 +665,10 @@ int run_program_from_memory() {
   print_program_name_from_memory();
   
   // Iš eilės vykdome visas komandas iš atminties
-  commit_commands_from_memory();
+  int commandsCommited = commit_commands_from_memory();
+  if (commandsCommited == FALSE) {
+    return FALSE;
+  }
   
   // Jeigu neįvyko problemų - gražiname sėkmės reikšmę
   return TRUE;
