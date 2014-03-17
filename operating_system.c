@@ -81,7 +81,7 @@
 #define OS_COMMAND_TEXT_PTxy "\nVykdoma komanda PTxy...\n"
 #define OS_COMMAND_TEXT_ADDN "\nVykdoma komanda ADDN...\n"
 #define OS_COMMAND_TEXT_SUBN "\nVykdoma komanda SUBN...\n"
-#define OS_COMMAND_TEXT_READ "\nIveskite skaiciu (0-999): "
+#define OS_COMMAND_TEXT_READ "\nIveskite skaiciu [-999 ; 9999]: "
 #define OS_COMMAND_TEXT_PRTS "\nVykdoma komanda PRTS...\n"
 #define OS_COMMAND_TEXT_PRTN "\nVykdoma komanda PRTN...\n"
 #define OS_COMMAND_TEXT_STOP "\nVykdoma komanda STOP...\n"
@@ -495,6 +495,7 @@ int initialize_given_program_to_memory(const char *fileByteArray) {
  * Iš atminties spausdina programos pavadinimą.
  */
 void print_program_name_from_memory() {
+  printf("------ ");
   for (int i=0 ; i<=FILE_FORMAT_PROGRAM_NAME_LENGTH ; i++) {
     char charToPrint = OS_DESIGN_RESERVED_WORD_SYMBOL;
 	
@@ -512,6 +513,7 @@ void print_program_name_from_memory() {
 	  break;
 	}
   }
+  printf(" ------\n");
 }
 
 /**
@@ -525,6 +527,24 @@ char *parse_word_from_memory(int address) {
   }
   
   return word;
+}
+
+/**
+ * Skaičių paverčia į tekstinę eilutę.
+ */
+char *decimal_to_string_format(int decimal) {
+  char *returnable = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  sprintf(returnable, "%d", decimal);
+  return returnable;
+}
+
+/**
+ * Į nurodytą realų adresą įrašomas žodis.
+ */
+void write_word_to_memory_at(int realAddress, char *word) {
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    memory[realAddress][i] = word[i];
+  }
 }
 
 /**
@@ -550,6 +570,12 @@ void os_command_pt(char x, char y) {
  */
 void os_command_addn() {
   printf("%s", OS_COMMAND_TEXT_ADDN);
+  int numberOne = atoi(memory[get_real_word_address(sp - 1)]);
+  int numberTwo = atoi(memory[get_real_word_address(sp)]);
+  int sumResult = numberOne + numberTwo;
+  char *result = decimal_to_string_format(sumResult);
+  write_word_to_memory_at(get_real_word_address(sp - 1), result);
+  sp--;
 }
 
 /**
@@ -559,6 +585,12 @@ void os_command_addn() {
  */
 void os_command_subn() {
   printf("%s", OS_COMMAND_TEXT_SUBN);
+  int numberOne = atoi(memory[get_real_word_address(sp - 1)]);
+  int numberTwo = atoi(memory[get_real_word_address(sp)]);
+  int subResult = numberOne - numberTwo;
+  char *result = decimal_to_string_format(subResult);
+  write_word_to_memory_at(get_real_word_address(sp - 1), result);
+  sp--;
 }
 
 /**
@@ -569,10 +601,12 @@ void os_command_read() {
   do {
 	printf("%s", OS_COMMAND_TEXT_READ);
 	scanf("%d", &ivestasSkaicius);
-  } while (ivestasSkaicius < 0 || ivestasSkaicius > 999);
+  } while (ivestasSkaicius < -999 || ivestasSkaicius > 9999);
   printf("\n");
   
-  
+  char *result = decimal_to_string_format(ivestasSkaicius);
+  sp++;
+  write_word_to_memory_at(get_real_word_address(sp), result);
 }
 
 /**
@@ -581,14 +615,25 @@ void os_command_read() {
  */
 void os_command_prts() {
   printf("%s", OS_COMMAND_TEXT_PRTS);
+  char *stringToPrint = memory[get_real_word_address(sp)];
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    printf("%c", stringToPrint[i]);
+  }
+  printf("\n");
 }
 
 /**
  * PRTN – steko viršūnėje esantį žodį traktuoja kaip skaitinę reikšmę ir išveda
- *  į išvedimo įrenginį.
+ * į išvedimo įrenginį.
  */
 void os_command_prtn() {
   printf("%s", OS_COMMAND_TEXT_PRTN);
+  char *numberToPrintStr = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    numberToPrintStr[i] = memory[get_real_word_address(sp)][i];
+  }
+  int numberToPrint = atoi(numberToPrintStr);
+  printf("%d\n", numberToPrint);
 }
 
 /**
@@ -596,6 +641,7 @@ void os_command_prtn() {
  */
 void os_command_stop() {
   printf("%s", OS_COMMAND_TEXT_STOP);
+  exit(0);
 }
 
 /**
