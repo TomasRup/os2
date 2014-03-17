@@ -117,10 +117,13 @@ void print_memory_status() {
   file = fopen(MEMORY_STATUS_FILE_NAME, "a");
 
   fprintf(file, "%s", MEMORY_STATUS_TEXT_FIRST_LINE);
+  
   for (int i=0 ; i<OS_DESIGN_WORDS_AMOUNT ; i++) {
+	
 	for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
 	  fprintf(file, "%c", memory[i][j]);
 	}
+	
 	fprintf(file, ": %d%s\n", (i+1), MEMORY_STATUS_TEXT_WORD_LINE);
   }
   
@@ -138,6 +141,7 @@ void print_page_table() {
   int pageTableFirstWordIndex = pageTableBlockIndex * OS_DESIGN_WORDS_IN_BLOCK;
 
   fprintf(file, "%s", PAGE_TABLE_TEXT_FIRST_LINE);
+  
   for (int i=0 ; i<OS_DESIGN_BLOCKS_FOR_VM ; i++) {
     fprintf(file, "%d :: %s\n", i, memory[pageTableFirstWordIndex + i]);
   }
@@ -552,7 +556,8 @@ void write_word_to_memory_at(int realAddress, char *word) {
  * skaiciu i desimatini ir grazina jo reiksme.
  */
 int two_hex_symbols_to_decimal(char x, char y) {
-  
+  char hexString[3] = {x, y, '\0'};
+  return strtol(hexString, NULL, 16);
 }
 
 /**
@@ -562,7 +567,11 @@ int two_hex_symbols_to_decimal(char x, char y) {
 void os_command_ld(char x, char y) {
   printf("%s", OS_COMMAND_TEXT_LDxy);
   int wordNumber = two_hex_symbols_to_decimal(x, y);
-  printf("\n\n%d\n\n", wordNumber);
+  sp++;
+  
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    memory[get_real_word_address(sp)][i] = memory[get_real_word_address(wordNumber)][i];
+  }
 }
 
 /**
@@ -572,7 +581,12 @@ void os_command_ld(char x, char y) {
 void os_command_pt(char x, char y) {
   printf("%s", OS_COMMAND_TEXT_PTxy);
   int wordNumber = two_hex_symbols_to_decimal(x, y);
-  printf("\n\n%d\n\n", wordNumber);
+  
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    memory[get_real_word_address(wordNumber)][i] = memory[get_real_word_address(sp)][i];
+  }
+  
+  sp--;
 }
 
 /**
@@ -610,10 +624,12 @@ void os_command_subn() {
  */
 void os_command_read() {
   int ivestasSkaicius = 0;
+  
   do {
 	printf("%s", OS_COMMAND_TEXT_READ);
 	scanf("%d", &ivestasSkaicius);
   } while (ivestasSkaicius < -999 || ivestasSkaicius > 9999);
+  
   printf("\n");
   
   char *result = decimal_to_string_format(ivestasSkaicius);
@@ -628,9 +644,11 @@ void os_command_read() {
 void os_command_prts() {
   printf("%s", OS_COMMAND_TEXT_PRTS);
   char *stringToPrint = memory[get_real_word_address(sp)];
+  
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
     printf("%c", stringToPrint[i]);
   }
+  
   printf("\n");
 }
 
@@ -641,9 +659,11 @@ void os_command_prts() {
 void os_command_prtn() {
   printf("%s", OS_COMMAND_TEXT_PRTN);
   char *numberToPrintStr = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
     numberToPrintStr[i] = memory[get_real_word_address(sp)][i];
   }
+  
   int numberToPrint = atoi(numberToPrintStr);
   printf("%d\n", numberToPrint);
 }
@@ -653,6 +673,14 @@ void os_command_prtn() {
  */
 void os_command_stop() {
   printf("%s", OS_COMMAND_TEXT_STOP);
+  
+  // Spausdiname atminties būklę
+  print_memory_status();
+  
+  // Spausdiname puslapiavimo lentelę
+  print_page_table();
+  
+  // Išeiname
   exit(0);
 }
 
