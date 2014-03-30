@@ -36,6 +36,19 @@
 #define MEMORY_STATUS_TEXT_FIRST_LINE "\n\nAtminties bukle:\n"
 #define MEMORY_STATUS_TEXT_WORD_LINE "-as zodis"
 #define PAGE_TABLE_TEXT_FIRST_LINE "\n\nPuslapiavimo lentele\nVM :: RM\n"
+#define REGISTER_VALUES_FIRST_LINE "Baigta vykdyti (vartotojo rezime)"
+#define REGISTER_VALUES_PTR "PTR"
+#define REGISTER_VALUES_MODE "MODE"
+#define REGISTER_VALUES_PI "PI"
+#define REGISTER_VALUES_SI "SI"
+#define REGISTER_VALUES_TI "TI"
+#define REGISTER_VALUES_CH1 "CH1"
+#define REGISTER_VALUES_CH2 "CH2"
+#define REGISTER_VALUES_SP "SP (virtualus)"
+#define REGISTER_VALUES_PC "PC (virtualus)"
+#define HEADLINE_CHANNEL_READ "Pradeda veikti kanalų įrenginys - vykdo READ"
+#define HEADLINE_CHANNEL_PRTS "Pradeda veikti kanalų įrenginys - vykdo PRTS"
+#define HEADLINE_CHANNEL_PRTN "Pradeda veikti kanalų įrenginys - vykdo PRTN"
 
 // Programos failų formato reikalavimai
 #define FILE_FORMAT_BEGINNING "$BEG"
@@ -62,6 +75,20 @@
 #define OS_DESGIN_STACK_BLOCK_TO 15
 #define OS_DESIGN_DEFAULT_SP_VALUE 223
 #define OS_DESIGN_DEFAULT_PC_VALUE 112
+#define OS_DESIGN_MODE_USER 0
+#define OS_DESIGN_MODE_SUPERVISOR 1
+#define OS_DESIGN_DEFAULT_PI_VALUE 0
+#define OS_DESIGN_DEFAULT_PI_INVALID_ADDRESS 1
+#define OS_DESIGN_DEFAULT_PI_INVALID_OPERATION 2
+#define OS_DESIGN_DEFAULT_PI_INVALID_ASSIGNMENT 3
+#define OS_DESIGN_DEFAULT_SI_VALUE 0
+#define OS_DESIGN_DEFAULT_SI_STOP 1
+#define OS_DESIGN_DEFAULT_SI_READ 2
+#define OS_DESIGN_DEFAULT_SI_PRTS 3
+#define OS_DESIGN_DEFAULT_SI_PRTN 4
+#define OS_DESIGN_DEFAULT_TI_VALUE 100
+#define OS_DESIGN_CHANNEL_FREE 0
+#define OS_DESIGN_CHANNEL_IN_USE 1
 
 // Atminties išvesties failo duomenys
 #define MEMORY_STATUS_FILE_NAME "memory_status.txt"
@@ -76,32 +103,62 @@
 #define PRTN "PRTN" // PRTN
 #define STOP "STOP" // STOP
 
-// OS funkcijų tekstai
-#define OS_COMMAND_TEXT_LDxy "\nVykdoma komanda LDxy...\n"
-#define OS_COMMAND_TEXT_PTxy "\nVykdoma komanda PTxy...\n"
-#define OS_COMMAND_TEXT_ADDN "\nVykdoma komanda ADDN...\n"
-#define OS_COMMAND_TEXT_SUBN "\nVykdoma komanda SUBN...\n"
-#define OS_COMMAND_TEXT_READ "\nIveskite skaiciu [-999 ; 9999]: "
-#define OS_COMMAND_TEXT_PRTS "\nVykdoma komanda PRTS...\n"
-#define OS_COMMAND_TEXT_PRTN "\nVykdoma komanda PRTN...\n"
-#define OS_COMMAND_TEXT_STOP "\nVykdoma komanda STOP...\n"
-
 // Atmintis
 char memory[OS_DESIGN_WORDS_AMOUNT][OS_DESIGN_BYTES_PER_WORD];
 
-// Registras/adresas, rodantis į steko viršūnės
-int sp;
+// Realios mašinos registrai
+char ptr[4];
+int mode;
+int pi;
+int si;
+int ti;
+int ch1;
+int ch2;
 
-// Registras/adresas, rodantis sekančios instrukcijos reikšmę
+// Virtualios mašinos registrai
+int sp;
 int pc;
 
-// Registras, rodantis į puslapių lentelę
-char ptr[4];
+/**
+ * Įdiegia pradinę MODE registro reikšmę.
+ */
+void initialize_mode() {
+  mode = OS_DESIGN_MODE_USER;
+}
+
+/**
+ * Įdiegia pradinę PI registro reikšmę.
+ */
+void initialize_pi() {
+  pi = OS_DESIGN_DEFAULT_PI_VALUE;
+}
+
+/**
+ * Įdiegia pradinę SI registro reikšmę.
+ */
+void initialize_si() {
+  si = OS_DESIGN_DEFAULT_SI_VALUE;
+}
+
+/**
+ * Įdiegia pradinę TI registro reikšmę.
+ */
+void initialize_ti() {
+  ti = OS_DESIGN_DEFAULT_TI_VALUE;
+}
+
+/**
+ * Įdiegia pradines kanalų registrų CH1, CH2 reikšmės.
+ */
+void initialize_channels() {
+  ch1 = OS_DESIGN_CHANNEL_FREE;
+  ch2 = OS_DESIGN_CHANNEL_FREE;
+}
 
 /**
  * Užpildo atminties masyvą simboliais, reiškiančiais tuščią baitą.
  */
-void initialize_memory() {  
+void initialize_memory_to_empty_bytes() {  
   for (int i=0 ; i<OS_DESIGN_WORDS_AMOUNT ; i++) {
     for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
 	  memory[i][j] = OS_DESIGN_EMPTY_WORD_BYTE_SYMBOL;
@@ -110,20 +167,63 @@ void initialize_memory() {
 }
 
 /**
- * Išspausdina atminties būklę.
+ * Spausdina registrų reikšmes į failą.
+ */
+void print_register_values() {
+  FILE *file;
+  file = fopen(MEMORY_STATUS_FILE_NAME, "a");
+
+  fprintf(file, "%s: %s\n", REGISTER_VALUES_PTR, ptr);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_MODE, mode);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_PI, pi);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_SI, si);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_TI, ti);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_CH1, ch1);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_CH2, ch2);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_SP, sp);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_PC, pc);
+ 
+  fclose(file);
+}
+
+/**
+ * Spausdina registrų reikšmes į failą ir nurodo komandą, 
+ * po kurios spausdinta.
+ */
+void print_register_values_after_command(char *commandName) {
+  FILE *file;
+  file = fopen(MEMORY_STATUS_FILE_NAME, "a");
+  fprintf(file, "\n%s: %s\n", REGISTER_VALUES_FIRST_LINE, commandName);
+  fclose(file);
+  
+  print_register_values();
+}
+
+/**
+ * Spausdina registrų reikšmes į failą ir nurodo eilutė virš
+ * registrų.
+ */
+void print_register_values_with_headline(char *headline) {
+  FILE *file;
+  file = fopen(MEMORY_STATUS_FILE_NAME, "a");
+  fprintf(file, "\n%s\n", headline);
+  fclose(file);
+  
+  print_register_values();
+}
+
+/**
+ * Išspausdina atminties būklę su nurodyta priežastimi į failą.
  */
 void print_memory_status() {
   FILE *file;
   file = fopen(MEMORY_STATUS_FILE_NAME, "a");
 
   fprintf(file, "%s", MEMORY_STATUS_TEXT_FIRST_LINE);
-  
   for (int i=0 ; i<OS_DESIGN_WORDS_AMOUNT ; i++) {
-	
 	for (int j=0 ; j<OS_DESIGN_BYTES_PER_WORD ; j++) {
 	  fprintf(file, "%c", memory[i][j]);
 	}
-	
 	fprintf(file, ": %d%s\n", (i+1), MEMORY_STATUS_TEXT_WORD_LINE);
   }
   
@@ -131,7 +231,7 @@ void print_memory_status() {
 }
 
 /**
- * Išspausdina puslapiavimo lentelę
+ * Išspausdina puslapiavimo lentelę į failą.
  */
 void print_page_table() {
   FILE *file;
@@ -141,7 +241,6 @@ void print_page_table() {
   int pageTableFirstWordIndex = pageTableBlockIndex * OS_DESIGN_WORDS_IN_BLOCK;
 
   fprintf(file, "%s", PAGE_TABLE_TEXT_FIRST_LINE);
-  
   for (int i=0 ; i<OS_DESIGN_BLOCKS_FOR_VM ; i++) {
     fprintf(file, "%d :: %s\n", i, memory[pageTableFirstWordIndex + i]);
   }
@@ -499,7 +598,6 @@ int initialize_given_program_to_memory(const char *fileByteArray) {
  * Iš atminties spausdina programos pavadinimą.
  */
 void print_program_name_from_memory() {
-  printf("------ ");
   for (int i=0 ; i<=FILE_FORMAT_PROGRAM_NAME_LENGTH ; i++) {
     char charToPrint = OS_DESIGN_RESERVED_WORD_SYMBOL;
 	
@@ -517,7 +615,7 @@ void print_program_name_from_memory() {
 	  break;
 	}
   }
-  printf(" ------\n");
+  printf("\n");
 }
 
 /**
@@ -561,13 +659,29 @@ int two_hex_symbols_to_decimal(char x, char y) {
 }
 
 /**
+ * Tikrina, ar pateiktas adresas patenka į atmintį ir pagal
+ * tai gražina loginę reikšmę.
+ */
+int is_address_within_boundaries(int realWordAddress) {
+  if (realWordAddress < 0 || realWordAddress > OS_DESIGN_WORDS_AMOUNT) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * LDxy – į steko viršūnę perkelia reikšmę iš duomenų srities 
  * adresu SP++; 16 * x + y. (x < 7). xy - sesioliktainis skaicius.
  */
 void os_command_ld(char x, char y) {
-  printf("%s", OS_COMMAND_TEXT_LDxy);
   int wordNumber = two_hex_symbols_to_decimal(x, y);
   sp++;
+  
+  if (is_address_within_boundaries(get_real_word_address(wordNumber)) == FALSE) {
+    pi = OS_DESIGN_DEFAULT_PI_INVALID_ADDRESS;
+    return;
+  }
   
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
     memory[get_real_word_address(sp)][i] = memory[get_real_word_address(wordNumber)][i];
@@ -579,8 +693,12 @@ void os_command_ld(char x, char y) {
  * adresu 16 * x + y. (x < 7); SP--. xy - sesioliktainis skaicius.
  */
 void os_command_pt(char x, char y) {
-  printf("%s", OS_COMMAND_TEXT_PTxy);
   int wordNumber = two_hex_symbols_to_decimal(x, y);
+  
+  if (is_address_within_boundaries(get_real_word_address(wordNumber)) == FALSE) {
+    pi = OS_DESIGN_DEFAULT_PI_INVALID_ADDRESS;
+    return;
+  }
   
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
     memory[get_real_word_address(wordNumber)][i] = memory[get_real_word_address(sp)][i];
@@ -595,7 +713,6 @@ void os_command_pt(char x, char y) {
  * + [SP]; SP--.
  */
 void os_command_addn() {
-  printf("%s", OS_COMMAND_TEXT_ADDN);
   int numberOne = atoi(memory[get_real_word_address(sp - 1)]);
   int numberTwo = atoi(memory[get_real_word_address(sp)]);
   int sumResult = numberOne + numberTwo;
@@ -610,7 +727,6 @@ void os_command_addn() {
  * vienetu. [SP – 1] = [ SP – 1] - [SP]; SP--.
  */
 void os_command_subn() {
-  printf("%s", OS_COMMAND_TEXT_SUBN);
   int numberOne = atoi(memory[get_real_word_address(sp - 1)]);
   int numberTwo = atoi(memory[get_real_word_address(sp)]);
   int subResult = numberOne - numberTwo;
@@ -620,75 +736,37 @@ void os_command_subn() {
 }
 
 /**
- * READ – nuskaito vartotojo įvedimą kaip skaičių ir įrašo į steko viršūnę.
+ * READ – nurodo kanalų įrenginiui vykdyti skaitymą.
  */
 void os_command_read() {
-  int ivestasSkaicius = 0;
-  
-  do {
-	printf("%s", OS_COMMAND_TEXT_READ);
-	scanf("%d", &ivestasSkaicius);
-  } while (ivestasSkaicius < -999 || ivestasSkaicius > 9999);
-  
-  printf("\n");
-  
-  char *result = decimal_to_string_format(ivestasSkaicius);
-  sp++;
-  write_word_to_memory_at(get_real_word_address(sp), result);
+  si = OS_DESIGN_DEFAULT_SI_READ;
 }
 
 /**
- * PRTS – steko viršūnėje esantį žodį traktuoja kaip simbolius ir išveda į 
- * išvedimo įrenginį.
+ * PRTS – nurodo kanalų įrenginiui vykdyti eilutės spausdinimą.
  */
 void os_command_prts() {
-  printf("%s", OS_COMMAND_TEXT_PRTS);
-  char *stringToPrint = memory[get_real_word_address(sp)];
-  
-  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
-    printf("%c", stringToPrint[i]);
-  }
-  
-  printf("\n");
+  si = OS_DESIGN_DEFAULT_SI_PRTS;
 }
 
 /**
- * PRTN – steko viršūnėje esantį žodį traktuoja kaip skaitinę reikšmę ir išveda
- * į išvedimo įrenginį.
+ * PRTN – nurodo kanalų įrenginiui vykdyti skaičiaus spausdinimą.
  */
 void os_command_prtn() {
-  printf("%s", OS_COMMAND_TEXT_PRTN);
-  char *numberToPrintStr = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
-  
-  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
-    numberToPrintStr[i] = memory[get_real_word_address(sp)][i];
-  }
-  
-  int numberToPrint = atoi(numberToPrintStr);
-  printf("%d\n", numberToPrint);
+  si = OS_DESIGN_DEFAULT_SI_PRTN;
 }
 
 /**
- * STOP – programos sustojimo komanda.
+ * STOP – nurodo registrui, kad reikia stabdyti programą.
  */
 void os_command_stop() {
-  printf("%s", OS_COMMAND_TEXT_STOP);
-  
-  // Spausdiname atminties būklę
-  print_memory_status();
-  
-  // Spausdiname puslapiavimo lentelę
-  print_page_table();
-  
-  // Išeiname
-  exit(0);
+  si = OS_DESIGN_DEFAULT_SI_STOP;
 }
 
 /**
- * Nuskaito komandą, kokia buvo nurodyta atmintyje ir ją vykdo. Gražina
- * TRUE arba FALSE priklausomai nuo to, ar komanda įvykdyta sėkmingai.
+ * Nuskaito komandą, kokia buvo nurodyta atmintyje ir ją vykdo.
  */
-int parse_command_and_launch_it(char *command) {
+void parse_command_and_launch_it(char *command) {
   // Komanda PTxy
   if (strncmp(LD, command, 2) == 0) {
 	os_command_ld(command[2], command[3]);
@@ -723,58 +801,164 @@ int parse_command_and_launch_it(char *command) {
   
   // Neatpažinta komanda
   } else {
-	printf("%s\n", INCORRECT_COMMAND_READ_FROM_MEMORY);
-	return FALSE;
+    pi = OS_DESIGN_DEFAULT_PI_INVALID_OPERATION;
   }
   
-  return TRUE;
+  // Padidiname komandos skaitliuką
+  pc++;
+  
+  // Spausdiname registrų reikšmes
+  print_register_values_after_command(command);
 }
 
 /**
- * Iš atminties nuskaito komandas ir jas vykdo. Gražina TRUE arba FALSE
- * priklausomai nuo to, ar sėkmingai įgyvendinta komanda.
+ * Vykdomas nuskaitymas iš kanalų įrenginio. nuskaito 
+ * vartotojo įvedimą kaip skaičių ir įrašo į steko viršūnę.
  */
-int commit_commands_from_memory() {
-  // Įdiegiame tuščią žodį
-  char *emptyCommand = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+void channel_read() {
+  int numberTyped = 0;
+  scanf("%d", &numberTyped);
+  
+  if (numberTyped < -999 || numberTyped > 9999) {
+    pi = OS_DESIGN_DEFAULT_PI_INVALID_ASSIGNMENT;
+  }
+  
+  char *result = decimal_to_string_format(numberTyped);
+  sp++;
+  write_word_to_memory_at(get_real_word_address(sp), result);
+}
+
+/**
+ * Vykdomas skaičiaus spausdinimas iš kanalų įrenginio.
+ * Steko viršūnėje esantį žodį traktuoja kaip skaitinę reikšmę ir išveda
+ * į išvedimo įrenginį.
+ */
+void channel_prtn() {
+  char *numberToPrintStr = (char *)calloc(OS_DESIGN_BYTES_PER_WORD, sizeof(char));
+  
   for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
-    emptyCommand[i] = OS_DESIGN_RESERVED_WORD_SYMBOL;
+    numberToPrintStr[i] = memory[get_real_word_address(sp)][i];
   }
   
-  // Iteruojame per visas atminty esančias komandas
-  char *command = parse_word_from_memory(get_real_word_address(pc));
-  while (strncmp(command, emptyCommand, OS_DESIGN_BYTES_PER_WORD) != 0) {
-	// Vykdome komandą
-	int parsedAndLaunched = parse_command_and_launch_it(command);
-	if (parsedAndLaunched == FALSE) {
-	  return FALSE;
-	}
-	
-	// Padidiname komandos skaitliuką
-	pc++;
-	
-	// Įdiegiame naują komandą
-	command = parse_word_from_memory(get_real_word_address(pc));
-  }
-  
-  return TRUE;
+  int numberToPrint = atoi(numberToPrintStr);
+  printf("%d\n", numberToPrint);
 }
 
 /**
- * Vykdo programą, iš atminties.
+ * Vykdomas tekstinės eilutės spausdinimas iš kanalų įrenginio.
+ * Steko viršūnėje esantį žodį traktuoja kaip simbolius ir išveda į 
+ * išvedimo įrenginį.
  */
-int run_program_from_memory() {
-  // Atspausdiname programos pavadinimą iš atminties
-  print_program_name_from_memory();
+void channel_prts() {
+  char *stringToPrint = memory[get_real_word_address(sp)];
   
-  // Iš eilės vykdome visas komandas iš atminties
-  int commandsCommited = commit_commands_from_memory();
-  if (commandsCommited == FALSE) {
-    return FALSE;
+  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+    printf("%c", stringToPrint[i]);
   }
   
-  // Jeigu neįvyko problemų - gražiname sėkmės reikšmę
-  return TRUE;
+  printf("\n");
+}
+
+/**
+ * Įjungia kanalų įrenginį ir tikrina SI registrą.
+ */
+void enable_channel_mechanism() {
+  // Vykdome skaičiaus nuskaitymą jeigu laisvas 1 kanalas
+  if (si == OS_DESIGN_DEFAULT_SI_READ && ch1 == OS_DESIGN_CHANNEL_FREE) {
+    ch1 = OS_DESIGN_CHANNEL_IN_USE;
+	
+    char headline[] = HEADLINE_CHANNEL_READ;
+    print_register_values_with_headline(headline);
+    channel_read();
+	
+	ch1 = OS_DESIGN_CHANNEL_FREE;
+	
+  // Vykdome eilutės spausdinimą jeigu laisvas 2 kanalas
+  } else if (si == OS_DESIGN_DEFAULT_SI_PRTS && ch2 == OS_DESIGN_CHANNEL_FREE) {
+    ch2 = OS_DESIGN_CHANNEL_IN_USE;
+	
+	char headline[] = HEADLINE_CHANNEL_PRTS;
+    print_register_values_with_headline(headline);
+    channel_prts();
+	
+	ch2 = OS_DESIGN_CHANNEL_FREE;
+  
+  // Vykdome skaičiaus spausdinimą jeigu laisvas 2 kanalas
+  } else if (si == OS_DESIGN_DEFAULT_SI_PRTN && ch2 == OS_DESIGN_CHANNEL_FREE) {
+    ch2 = OS_DESIGN_CHANNEL_IN_USE;
+	
+    char headline[] = HEADLINE_CHANNEL_PRTN;
+	print_register_values_with_headline(headline);
+    channel_prtn();
+	
+	ch2 = OS_DESIGN_CHANNEL_FREE;
+  }
+}
+
+/**
+ * Baigia darbą bei atspausdina atminties išraišką ir puslapiavimo
+ * lentelę.
+ */
+void perform_interrupt_quit(int errorCode) {
+  char stopName[] = STOP;
+  print_register_values_after_command(stopName);
+  print_memory_status();
+  print_page_table();
+  exit(errorCode);
+}
+
+/**
+ *  Tikrina pertraukimus ir juos vykdo.
+ */
+void check_interrupts() {
+  // Pereiname į supervizoriaus rėžimą, jeigu vykdomas pertraukimas
+  if ((pi + si) > 0 || ti == 0) {
+    mode = OS_DESIGN_MODE_SUPERVISOR;
+  }
+  
+  // Jeigu PI reikšme didesnė už 1, vadinasi ivyko klaida
+  if (pi > 0) {
+    perform_interrupt_quit(EXIT_FAILURE);
+
+  // Jeigu taimeris tapo 0, tiketina, kad:
+  //  - patekome į infinite loop'ą
+  //  - programoje esti daugiau komandų nei leidžiama
+  } else if (ti == 0) {
+    perform_interrupt_quit(EXIT_FAILURE);
+
+  // Jeigu SI tapo 1, vadinasi vykdoma komandą stop
+  } else if (si == 1) {
+    perform_interrupt_quit(EXIT_SUCCESS);
+  }
+
+  // Atnaujiname SI ir PI
+  si = OS_DESIGN_DEFAULT_SI_VALUE;
+  pi = OS_DESIGN_DEFAULT_PI_VALUE;
+  
+  // Grįžtame į vartotojo rėžimą
+  mode = OS_DESIGN_MODE_USER;
+}
+
+/**
+ * Vykdo visą OS algoritmą iš atminties.
+ */
+void load_os() {  
+  while (true) {
+	// Dekoduojame komandą
+	char *commandName = parse_word_from_memory(get_real_word_address(pc));
+	
+	// Vykdome komandą
+	parse_command_and_launch_it(commandName);
+	
+	// Sumažiname taimerio reikšmė
+	ti--;
+	
+	// Įjungiame kanalų įrenginį
+	enable_channel_mechanism();
+	
+	// Tikriname pertraukimus
+	check_interrupts();
+  }
 }
 
 /**
@@ -795,25 +979,23 @@ int main(int argc, const char *argv[]) {
 	return EXIT_FAILURE;
   }
 	
-  // Išvalome failą, skirtą atminties būklei stebėti
+  // Išvalome failą, skirtą atminties būklei stebėti,
+  // jeigu toks egzistuoja
   remove(MEMORY_STATUS_FILE_NAME);
 	
-  // Įdiegiame operacinės sistemos atmintį
-  initialize_memory();
-  
-  // Įdiegiame PTR registrą su nuorodą į puslapiavimo lentelę
+  // Įdiegiame registrų pradines reikšmes
+  initialize_memory_to_empty_bytes();
+  initialize_channels();
+  initialize_mode();
+  initialize_pi();
+  initialize_si();
+  initialize_ti();
   initialize_ptr();
-
-  // Įdiegiame puslapiavimo lentelę
   initialize_page_table();
-  
-  // Įdiegiame pradinę SP reikšmę
   initialize_sp();
-  
-  // Įdiegiame pradinę PC reikšmę
   initialize_pc();
   
-  // Įdiegiame programą į atmintį
+  // Pakrauname programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
   if (flowSuccess == FALSE) {
 	wait_for_user_interaction();
@@ -821,19 +1003,8 @@ int main(int argc, const char *argv[]) {
   }
   
   // Vykdome pačią programą
-  int runSuccess = run_program_from_memory();
-  if (runSuccess == FALSE) {
-    wait_for_user_interaction();
-	return EXIT_FAILURE;
-  }
+  load_os();
   
-  // Spausdiname atminties būklę
-  print_memory_status();
-  
-  // Spausdiname puslapiavimo lentelę
-  print_page_table();
-  
-  // Užbaigiame darbą
-  wait_for_user_interaction();
-  return EXIT_SUCCESS;
+  // Jeigu programa pasiekia šį tašką, tai ji išjungiama ne su OS komanda
+  return EXIT_FAILURE;
 }
