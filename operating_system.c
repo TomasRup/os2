@@ -44,6 +44,10 @@
 #define REGISTER_VALUES_TI "TI"
 #define REGISTER_VALUES_CH1 "CH1"
 #define REGISTER_VALUES_CH2 "CH2"
+#define REGISTER_VALUES_IOI "IOI"
+#define REGISTER_VALUES_CHPRTS "CHPRTS"
+#define REGISTER_VALUES_CHPRTN "CHPRTN"
+#define REGISTER_VALUES_CHREAD "CHREAD"
 #define REGISTER_VALUES_SP "SP (virtualus)"
 #define REGISTER_VALUES_PC "PC (virtualus)"
 #define HEADLINE_CHANNEL_READ "Pradeda veikti kanalų įrenginys - vykdo READ"
@@ -89,6 +93,12 @@
 #define OS_DESIGN_DEFAULT_TI_VALUE 100
 #define OS_DESIGN_CHANNEL_FREE 0
 #define OS_DESIGN_CHANNEL_IN_USE 1
+#define OS_DESIGN_IOI_DEFAULT 0
+#define OS_DESIGN_IOI_DONE_READ 1
+#define OS_DESIGN_IOI_DONE_PRTN 2
+#define OS_DESIGN_IOI_DONE_PRTS 3
+#define OS_DESIGN_CH_CMD_DO 1
+#define OS_DESIGN_CH_CMD_DEFAULT 0
 
 // Atminties išvesties failo duomenys
 #define MEMORY_STATUS_FILE_NAME "memory_status.txt"
@@ -114,11 +124,38 @@ int si;
 int ti;
 int ch1;
 int ch2;
+int ioi;
+
+// Kanalų įrenginio registrai
+int chPrtn;
+int chPrts;
+int chRead;
+
+// Tarpiniai kintamieji
+int chToPrtn;
+char *chToPrts;
+char *chToRead;
 
 // Virtualios mašinos registrai
 int sp;
 int pc;
 
+/**
+ * Įdiegia pradines kanalų registrų reikšmes
+ */
+void initialize_ch_cmd() {
+  chPrtn = OS_DESIGN_CH_CMD_DEFAULT;
+  chPrts = OS_DESIGN_CH_CMD_DEFAULT; 
+  chRead = OS_DESIGN_CH_CMD_DEFAULT; 
+}
+
+/**
+ * Įdiegia pradinę IOI reikšmę.
+ */
+void initialize_ioi() {
+ ioi = OS_DESIGN_IOI_DEFAULT;
+}
+ 
 /**
  * Įdiegia pradinę MODE registro reikšmę.
  */
@@ -180,6 +217,10 @@ void print_register_values() {
   fprintf(file, "%s: %d\n", REGISTER_VALUES_TI, ti);
   fprintf(file, "%s: %d\n", REGISTER_VALUES_CH1, ch1);
   fprintf(file, "%s: %d\n", REGISTER_VALUES_CH2, ch2);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_IOI, ioi);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_CHPRTN, chPrtn);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_CHPRTS, chPrts);
+  fprintf(file, "%s: %d\n", REGISTER_VALUES_CHREAD, chRead);
   fprintf(file, "%s: %d\n", REGISTER_VALUES_SP, sp);
   fprintf(file, "%s: %d\n", REGISTER_VALUES_PC, pc);
  
@@ -739,6 +780,7 @@ void os_command_subn() {
  * READ – nurodo kanalų įrenginiui vykdyti skaitymą.
  */
 void os_command_read() {
+  chRead = OS_DESIGN_CH_CMD_DO;
   si = OS_DESIGN_DEFAULT_SI_READ;
 }
 
@@ -746,6 +788,7 @@ void os_command_read() {
  * PRTS – nurodo kanalų įrenginiui vykdyti eilutės spausdinimą.
  */
 void os_command_prts() {
+  chPrts = OS_DESIGN_CH_CMD_DO;
   si = OS_DESIGN_DEFAULT_SI_PRTS;
 }
 
@@ -753,6 +796,7 @@ void os_command_prts() {
  * PRTN – nurodo kanalų įrenginiui vykdyti skaičiaus spausdinimą.
  */
 void os_command_prtn() {
+  chPrtn = OS_DESIGN_CH_CMD_DO;
   si = OS_DESIGN_DEFAULT_SI_PRTN;
 }
 
@@ -823,9 +867,7 @@ void channel_read() {
     pi = OS_DESIGN_DEFAULT_PI_INVALID_ASSIGNMENT;
   }
   
-  char *result = decimal_to_string_format(numberTyped);
-  sp++;
-  write_word_to_memory_at(get_real_word_address(sp), result);
+  chToRead = decimal_to_string_format(numberTyped); 
 }
 
 /**
@@ -840,8 +882,7 @@ void channel_prtn() {
     numberToPrintStr[i] = memory[get_real_word_address(sp)][i];
   }
   
-  int numberToPrint = atoi(numberToPrintStr);
-  printf("%d\n", numberToPrint);
+  chToPrtn = atoi(numberToPrintStr);
 }
 
 /**
@@ -850,49 +891,40 @@ void channel_prtn() {
  * išvedimo įrenginį.
  */
 void channel_prts() {
-  char *stringToPrint = memory[get_real_word_address(sp)];
-  
-  for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
-    printf("%c", stringToPrint[i]);
-  }
-  
-  printf("\n");
+  chToPrts = memory[get_real_word_address(sp)];
 }
 
 /**
- * Įjungia kanalų įrenginį ir tikrina SI registrą.
+ * Įjungia kanalų įrenginį ir tikrina kanalų registrus.
  */
 void enable_channel_mechanism() {
   // Vykdome skaičiaus nuskaitymą jeigu laisvas 1 kanalas
-  if (si == OS_DESIGN_DEFAULT_SI_READ && ch1 == OS_DESIGN_CHANNEL_FREE) {
-    ch1 = OS_DESIGN_CHANNEL_IN_USE;
-	
+  if (chRead == OS_DESIGN_CH_CMD_DO && ch1 == OS_DESIGN_CHANNEL_FREE) {	
     char headline[] = HEADLINE_CHANNEL_READ;
     print_register_values_with_headline(headline);
     channel_read();
+    chRead = OS_DESIGN_CH_CMD_DEFAULT;
 	
-	ch1 = OS_DESIGN_CHANNEL_FREE;
+	ioi = OS_DESIGN_IOI_DONE_READ;
 	
   // Vykdome eilutės spausdinimą jeigu laisvas 2 kanalas
-  } else if (si == OS_DESIGN_DEFAULT_SI_PRTS && ch2 == OS_DESIGN_CHANNEL_FREE) {
-    ch2 = OS_DESIGN_CHANNEL_IN_USE;
-	
+  } else if (chPrts == OS_DESIGN_CH_CMD_DO && ch2 == OS_DESIGN_CHANNEL_FREE) {
 	char headline[] = HEADLINE_CHANNEL_PRTS;
     print_register_values_with_headline(headline);
     channel_prts();
-	
-	ch2 = OS_DESIGN_CHANNEL_FREE;
+    chPrts = OS_DESIGN_CH_CMD_DEFAULT;
+    
+	ioi = OS_DESIGN_IOI_DONE_PRTS;
   
   // Vykdome skaičiaus spausdinimą jeigu laisvas 2 kanalas
-  } else if (si == OS_DESIGN_DEFAULT_SI_PRTN && ch2 == OS_DESIGN_CHANNEL_FREE) {
-    ch2 = OS_DESIGN_CHANNEL_IN_USE;
-	
+  } else if (chPrtn == OS_DESIGN_CH_CMD_DO && ch2 == OS_DESIGN_CHANNEL_FREE) {	
     char headline[] = HEADLINE_CHANNEL_PRTN;
 	print_register_values_with_headline(headline);
     channel_prtn();
+    chPrtn = OS_DESIGN_CH_CMD_DEFAULT;
 	
-	ch2 = OS_DESIGN_CHANNEL_FREE;
-  }
+	ioi = OS_DESIGN_IOI_DONE_PRTN;
+  }  
 }
 
 /**
@@ -916,7 +948,7 @@ void check_interrupts() {
     mode = OS_DESIGN_MODE_SUPERVISOR;
   }
   
-  // Jeigu PI reikšme didesnė už 1, vadinasi ivyko klaida
+  // Jeigu PI reikšme didesnė už 0, vadinasi ivyko klaida
   if (pi > 0) {
     perform_interrupt_quit(EXIT_FAILURE);
 
@@ -926,14 +958,45 @@ void check_interrupts() {
   } else if (ti == 0) {
     perform_interrupt_quit(EXIT_FAILURE);
 
-  // Jeigu SI tapo 1, vadinasi vykdoma komandą stop
-  } else if (si == 1) {
+  // Jeigu SI tapo 1, vadinasi vykdoma komandą STOP
+  } else if (si == OS_DESIGN_DEFAULT_SI_STOP) {
     perform_interrupt_quit(EXIT_SUCCESS);
+	
+  // Jeigu SI tapo 2, vadinasi vykdoma komanda READ
+  } else if (si == OS_DESIGN_DEFAULT_SI_READ) {
+    ch1 = OS_DESIGN_CHANNEL_IN_USE;
+	sp++;
+    write_word_to_memory_at(get_real_word_address(sp), chToRead);
+	
+  // Jeigu SI tapo 3, vadinasi vykdoma komanda PRTS
+  } else if (si == OS_DESIGN_DEFAULT_SI_PRTS) {
+    ch2 = OS_DESIGN_CHANNEL_IN_USE;
+	for (int i=0 ; i<OS_DESIGN_BYTES_PER_WORD ; i++) {
+      printf("%c", chToPrts[i]);
+    }
+    printf("\n");
+	
+  // Jeigu SI tapo 4, vadinasi vykdoma komanda PRTN
+  } else if (si == OS_DESIGN_DEFAULT_SI_PRTN) {
+    ch2 = OS_DESIGN_CHANNEL_IN_USE;
+    printf("%d\n", chToPrtn);
   }
 
   // Atnaujiname SI ir PI
   si = OS_DESIGN_DEFAULT_SI_VALUE;
   pi = OS_DESIGN_DEFAULT_PI_VALUE;
+  
+  // Jeigu IOI rodo, kad baige spausdinimo darba - atlaisviname antraji kanala
+  if (ioi == OS_DESIGN_IOI_DONE_PRTN
+      || ioi == OS_DESIGN_IOI_DONE_PRTN) {
+    ch2 = OS_DESIGN_CHANNEL_FREE;
+    ioi = OS_DESIGN_IOI_DEFAULT;
+	
+  // Jeigu IOI rodo, kad baige skaitymo darba - atlaisviname pirmaji kanala
+  } else if (ioi == OS_DESIGN_IOI_DONE_READ) {
+    ch1 = OS_DESIGN_CHANNEL_FREE;
+    ioi = OS_DESIGN_IOI_DEFAULT;
+  }
   
   // Grįžtame į vartotojo rėžimą
   mode = OS_DESIGN_MODE_USER;
@@ -994,6 +1057,8 @@ int main(int argc, const char *argv[]) {
   initialize_page_table();
   initialize_sp();
   initialize_pc();
+  initialize_ioi();
+  initialize_ch_cmd();
   
   // Pakrauname programą į atmintį
   int flowSuccess = initialize_given_program_to_memory(fileByteArray);
